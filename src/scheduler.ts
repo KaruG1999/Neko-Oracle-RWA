@@ -70,8 +70,8 @@ export class OracleScheduler {
       this.log("debug", "Publishing to Soroban contract...");
       const publishParams: PublishParams = {
         assetId: priceData.assetId,
-        price: priceData.price,
-        timestamp: priceData.timestamp,
+        price: BigInt(priceData.price),
+        timestamp: BigInt(priceData.timestamp),
         commit,
       };
       const result = await this.publisher.publishToOracle(publishParams);
