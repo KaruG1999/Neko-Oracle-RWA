@@ -23,8 +23,6 @@ export interface PublishParams {
   price: number;
   timestamp: number;
   commit: string;
-  proof?: string;  // Hex-encoded ZK proof (optional for backward compatibility)
-  proofPublicInputs?: string;  // Hex-encoded public inputs from proof
 }
 
 export interface PublishResult {
@@ -62,6 +60,10 @@ export class SorobanPublisher {
           contractId,
           rpcUrl,
           networkPassphrase: this.networkPassphrase,
+          allowHttp: rpcUrl.startsWith("http://"),
+          publicKey: this.keypair.publicKey(),
+          signTransaction: this.createTransactionSigner(),
+          server: this.server,
         });
         this.client = client;
         return client;
@@ -107,8 +109,20 @@ export class SorobanPublisher {
     return this.clientPromise;
   }
 
+  private createTransactionSigner() {
+    return async (xdr: string, opts?: { networkPassphrase?: string }) => {
+      const passphrase = opts?.networkPassphrase ?? this.networkPassphrase;
+      const tx = TransactionBuilder.fromXDR(xdr, passphrase);
+      tx.sign(this.keypair);
+      return {
+        signedTxXdr: tx.toXDR(),
+        signerAddress: this.keypair.publicKey(),
+      };
+    };
+  }
+
   async publishToOracle(params: PublishParams): Promise<PublishResult> {
-    await this.getClient();
+    const client = await this.getClient();
 
     return this.retry(async () => {
       // Log the data that would be published
@@ -124,23 +138,37 @@ export class SorobanPublisher {
         ).toISOString()})`
       );
       console.log(`  Commit: ${params.commit}`);
-      
-      // Log ZK proof data if present
-      if (params.proof) {
-        console.log(`  ZK Proof: ${params.proof.slice(0, 64)}... (${params.proof.length / 2} bytes)`);
-        console.log(`  Proof Public Inputs: ${params.proofPublicInputs || 'N/A'}`);
-        console.log(`  [ZK-VERIFIED] Price verified through zero-knowledge proof`);
-      } else {
-        console.log(`  [WARNING] No ZK proof provided - publishing without cryptographic verification`);
-      }
-      
       console.log(`  Signer: ${this.keypair.publicKey()}`);
 
-      // Simulate transaction hash
-      const mockTxHash = "0".repeat(64); // Mock 64-char hex hash
+      const assembledTx = await client.set_asset_price({
+        asset_id: this.toAsset(params.assetId),
+        price: BigInt(params.price),
+        timestamp: BigInt(params.timestamp),
+      });
+
+      console.log("[PUBLISHER] Transaction simulated; signing and submitting...");
+      const sentTx = await assembledTx.signAndSend();
+
+      const finalResponse = sentTx.getTransactionResponse;
+      if (!finalResponse) {
+        throw new Error("Transaction was submitted but no final response was returned");
+      }
+      if (finalResponse.status !== "SUCCESS") {
+        throw new Error(`Transaction completed with status ${finalResponse.status}`);
+      }
+
+      const txHash =
+        finalResponse.txHash ??
+        sentTx.sendTransactionResponse?.hash;
+
+      if (!txHash) {
+        throw new Error("Unable to determine transaction hash after submission");
+      }
+
+      console.log(`[PUBLISHER] Soroban transaction succeeded: ${txHash}`);
 
       return {
-        txHash: mockTxHash,
+        txHash,
         success: true,
       };
     });
