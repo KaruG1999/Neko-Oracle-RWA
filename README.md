@@ -1,30 +1,29 @@
 <img width="2940" height="770" alt="image" src="https://github.com/user-attachments/assets/7f6504f2-1849-4507-9216-5f413b0e32c2" />
 
-# RWA Oracle (Stellar + ZK)
+# RWA Oracle (Stellar)
 
 This repository contains an early PoC implementation of the Neko Protocol RWA price oracle for the Stellar ecosystem. The goal is to provide trust‑minimized, verifiable pricing data for tokenized real‑world assets (RWAs) such as equities, bonds, and other financial instruments.
 
-Although this version focuses on simplicity, the architecture is designed to evolve toward higher security, more resilient data ingestion, and advanced cryptographic guarantees.
+Although this version focuses on simplicity, the architecture is designed to evolve toward higher security and more resilient data ingestion.
 
 ## Overview
 
-The oracle fetches asset prices from two independent API providers. Instead of publishing raw API values on‑chain, the system generates a zero‑knowledge proof (ZKP) that shows the following:
+The oracle fetches asset prices from multiple independent API providers. We make sure of the following:
 
 * The two or more feeds are close enough to each other according to a predefined tolerance rule.
 * A final aggregated price was computed correctly.
-* No party learns which specific API returned which value.
 
 The on‑chain smart contract (Soroban) verifies the proof and updates the RWA price stored in the protocol.
 
-This design allows Neko Protocol to operate a lending and borrowing system backed by real‑world assets without exposing sensitive or proprietary feed data.
+This design allows Neko Protocol to operate a lending and borrowing system backed by real‑world assets.
 
 ## How It Works
 
-1. **Fetch Prices:** The off‑chain oracle service retrieves price data for a given asset from two or more external APIs.
-2. **Normalize:** Both values are converted into a unified integer‑based format compatible with ZK circuits. Floating‑point operations are avoided as Noir doesn't exactly work with floats.
-3. **Prove:** A Noir/Barretenberg circuit checks alignment between feeds (e.g., the difference must not exceed a percentage threshold). It then computes the final price.
-4. **Verify:** The Soroban smart contract verifies the proof and writes the aggregated, verified price on‑chain.
-5. **Consume:** Neko Protocol's lending/borrowing contracts read the verified RWA price to calculate collateral values and liquidation thresholds.
+1. **Fetch Prices:** Off‑chain oracle service retrieves price data for the asset from multiple independent APIs.
+2. **Validate Consistency:** Check sources fall within the configured tolerance window; reject if not.
+3. **Aggregate:** Compute the agreed price (e.g. median or trimmed mean) from accepted feeds.
+4. **Submit Price:** Publish the aggregated price to the Soroban contract via a transaction.
+5. **Consume:** Lending/borrowing contracts read the stored RWA price to evaluate collateral and liquidation thresholds.
 
 ## Current Limitations (Roadmap)
 
