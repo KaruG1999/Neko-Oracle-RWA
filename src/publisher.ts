@@ -138,7 +138,6 @@ export class SorobanPublisher {
         ).toISOString()})`
       );
       console.log(`  Commit: ${params.commit}`);
-      console.log(`  Signer: ${this.keypair.publicKey()}`);
 
       const assembledTx = await client.set_asset_price({
         asset_id: this.toAsset(params.assetId),
